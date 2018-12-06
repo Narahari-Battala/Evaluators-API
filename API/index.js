@@ -2,11 +2,17 @@ var express = require('express');
 var bodyParser = require('body-parser');
 var mongoose = require('mongoose');
 var jwt = require('jsonwebtoken');
+var qrcode = require('qrcode')
 
 var app = express();
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended:true}));
+app.use(function(req, res, next) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+    next();
+  });
 
 mongoose.connect('mongodb://beacondb:beacondb@nodecluster-shard-00-00-ldy3x.mongodb.net:27017,nodecluster-shard-00-01-ldy3x.mongodb.net:27017,nodecluster-shard-00-02-ldy3x.mongodb.net:27017/project?ssl=true&replicaSet=nodecluster-shard-0&authSource=admin&retryWrites=true',
 {useNewUrlParser:true});
@@ -19,7 +25,8 @@ mongoose.connect('mongodb://beacondb:beacondb@nodecluster-shard-00-00-ldy3x.mong
 var userSchema = mongoose.Schema({
     userId : String,
     name : String,
-    password:String
+    password:String,
+    qrcodeAddress:String
     
 })
 
@@ -28,7 +35,7 @@ var teamSchema = mongoose.Schema({
     teamId: String,
     evaluationscount : Number,
     score:mongoose.Schema.Types.Decimal128,
-    token:String
+    qrcodeAddress:String
 
 })
 
@@ -44,12 +51,19 @@ var questionsschema = mongoose.Schema({
     question: String
 })
 
+var adminschema = mongoose.Schema({
+    username:String,
+    password:String
+})
+
 var User = mongoose.model('Users',userSchema)
 var teams = mongoose.model('Teams',teamSchema)
 var teamscores = mongoose.model('TeamScores',teamScores)
 var surveyquestions = mongoose.model('Survey Questions',questionsschema)
+var admin = mongoose.model('admin',adminschema)
 
 // login User
+
 app.get('/login',verifyToken,function(req,res){
 
     jwt.verify(req.token,'secretkey',(err,authData) =>{
@@ -61,12 +75,53 @@ app.get('/login',verifyToken,function(req,res){
         }
         else{
             res.status(200).json({
-                message:'Login successful'
+                message:'Login successful',
+                userid:authData.id
             });
 
         }
 
 })
+})
+
+app.post('/adminadd',function(req,res){
+
+    var Admin = new admin({
+        username:req.body.username,
+        password:req.body.password
+    })
+    Admin.save().then(result =>{
+        res.status(200).json({
+            "message":"Admin added successfully"
+        })
+    }).catch(err =>{
+        res.status(200).json({
+            "message":"Error adding Admin"
+        })
+    })
+})
+
+app.post('/adminlogin',function(req,res){
+
+    //console.log(" inside admin login")
+
+    var userName = req.body.username
+    var payload = {
+        id: userName
+    }
+    var tokenValue = jwt.sign(JSON.parse(JSON.stringify(payload)), 'secretkey',{
+            
+    });
+    admin.find({username:userName}).then(result =>{
+
+         if (result[0].password == req.body.password)
+         {
+             res.status(200).json({
+                 "token":tokenValue
+             })
+         }
+    })
+    
 })
 
 // Login team
@@ -82,7 +137,8 @@ app.get('/loginteam',verifyToken,function(req,res){
         }
         else{
             res.status(200).json({
-                message:'Login successful'
+                message:'Login successful',
+                teamid:authData.id
             });
 
         }
@@ -93,6 +149,7 @@ app.get('/loginteam',verifyToken,function(req,res){
 // Add an user
 app.post('/user',verifyToken,function(req,res)
 {
+    console.log("user inside ")
     jwt.verify(req.token,'secretkey',(err,authData) =>{
 
         if (err){
@@ -105,15 +162,27 @@ app.post('/user',verifyToken,function(req,res)
 
          if (result.length == 0)
          {
+            var payload = {
+                //password: req.body.password,
+                id: req.body.id
+            }
+            var tokenValue = jwt.sign(JSON.parse(JSON.stringify(payload)), 'secretkey',{
+            
+            });
+            qrcode.toDataURL(tokenValue, function (err, url) {
+                // console.log(url)
+            
              var addUser = new User(
                  {
                        userId : req.body.id,
                        name:req.body.name,
                        password : req.body.password,
+                       qrcodeAddress:url
                  })
 
                  addUser.save().then(result =>
                     {
+                        console.log("user added ");
                         res.status(201).json({
                             message:"User added successfully",
                             createdProduct:addUser
@@ -121,6 +190,7 @@ app.post('/user',verifyToken,function(req,res)
                     }).catch(err =>{
                         res.status(500).json({error:err});
                     })
+                });
          }
          else{
             res.status(500).json({
@@ -157,13 +227,13 @@ app.post('/team',verifyToken,function(req,res){
         var tokenValue = jwt.sign(JSON.parse(JSON.stringify(payload)), 'secretkey',{
             
         });
-    
+        qrcode.toDataURL(tokenValue, function (err, url) {
         var team = new teams({
 
             teamId: req.body.id,
             evaluationscount:0,
             score:0.0,
-            token:tokenValue
+            qrcodeAddress:url
 
         })
     team.save().then(result =>{
@@ -175,6 +245,7 @@ app.post('/team',verifyToken,function(req,res){
     }).catch(err =>{
         res.status(500).json({error:err});
     })
+})
 }
 else {
     res.status(500).json({
@@ -298,6 +369,8 @@ app.get('/allscores',verifyToken,function(req,res){
 // Get all users (Evaluators)
 app.get('/users',verifyToken,function(req,res){
 
+    // console.log("inside users")
+
     jwt.verify(req.token,'secretkey',(err,authData) =>{
 
         if (err){
@@ -308,8 +381,9 @@ app.get('/users',verifyToken,function(req,res){
         else{
    User.find().then(result =>{
 
+    // console.log("result is"+ result)
     res.status(200).json({
-        users:result
+        data:result
     })
    })
 }
@@ -329,7 +403,7 @@ app.get('/teams',verifyToken,function(req,res){
         else{
     teams.find().then(result =>{
         res.status(200).json({
-            teams:result
+            data:result
         })
     })
 }
@@ -402,7 +476,8 @@ app.get('/questions',verifyToken,function(req,res){
     surveyquestions.find().sort({questionId:1}).then(result =>{
 
         res.status(200).json({
-            questions:result
+            questions:result,
+            count:result.length
         })
     })
 }
