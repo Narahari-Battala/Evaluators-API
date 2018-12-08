@@ -484,6 +484,38 @@ app.get('/questions',verifyToken,function(req,res){
 })
 })
 
+app.get('/userteams' , verifyToken,function(req,res,next)
+{
+    jwt.verify(req.token,'secretkey',(err,authData) =>{
+
+        if (err){
+            res.status(403).json({
+                error:'Invalid Token'
+            });
+        }
+        else{
+
+            User.find({userId:req.query.userId}).then(result =>{
+    
+
+                if (result.length == 0){
+                    res.status(500).json({
+                        message:"Invalid user"
+                    });
+                }else {
+                    teamscores.find({userId:req.query.userId}).then(result =>{
+                        console.log("result is " + result);
+                        res.status(200).json({
+                            teams:result
+                        })
+                    })
+
+                }
+            })
+        }
+})
+})
+
 // Get JWT Token
 app.get('/usertoken',function(req,res)
 {
