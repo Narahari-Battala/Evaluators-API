@@ -56,11 +56,16 @@ var adminschema = mongoose.Schema({
     password:String
 })
 
+var questionscountschema = mongoose.Schema({
+    count:Number
+})
+
 var User = mongoose.model('Users',userSchema)
 var teams = mongoose.model('Teams',teamSchema)
 var teamscores = mongoose.model('TeamScores',teamScores)
 var surveyquestions = mongoose.model('Survey Questions',questionsschema)
 var admin = mongoose.model('admin',adminschema)
+//var questionscount = mongoose.model('questionscount',questionscountschema)
 
 // login User
 
@@ -73,10 +78,18 @@ app.get('/login',verifyToken,function(req,res){
                 error:'Invalid Token'
             });
         }
+        else if (authData.type != 'user')
+        {
+            console.log('not user')
+            res.status(403).json({
+                error:'Invalid Token'
+            });
+        }
         else{
             res.status(200).json({
                 message:'Login successful',
-                userid:authData.id
+                userid:authData.id,
+                type:authData.type
             });
 
         }
@@ -107,7 +120,8 @@ app.post('/adminlogin',function(req,res){
 
     var userName = req.body.username
     var payload = {
-        id: userName
+        id: userName,
+        type:'admin'
     }
     var tokenValue = jwt.sign(JSON.parse(JSON.stringify(payload)), 'secretkey',{
             
@@ -134,6 +148,12 @@ app.get('/loginteam',verifyToken,function(req,res){
             res.status(403).json({
                 error:'Invalid Token'
             });
+        }else if (authData.type != 'team')
+        {
+            console.log('not team')
+            res.status(403).json({
+                error:'Invalid Token'
+            });
         }
         else{
             res.status(200).json({
@@ -149,10 +169,15 @@ app.get('/loginteam',verifyToken,function(req,res){
 // Add an user
 app.post('/user',verifyToken,function(req,res)
 {
-    console.log("user inside ")
     jwt.verify(req.token,'secretkey',(err,authData) =>{
 
         if (err){
+            res.status(403).json({
+                error:'Invalid Token'
+            });
+        }else if (authData.type != 'admin')
+        {
+            console.log('not admin')
             res.status(403).json({
                 error:'Invalid Token'
             });
@@ -164,7 +189,8 @@ app.post('/user',verifyToken,function(req,res)
          {
             var payload = {
                 //password: req.body.password,
-                id: req.body.id
+                id: req.body.id,
+                type:'user'
             }
             var tokenValue = jwt.sign(JSON.parse(JSON.stringify(payload)), 'secretkey',{
             
@@ -182,7 +208,6 @@ app.post('/user',verifyToken,function(req,res)
 
                  addUser.save().then(result =>
                     {
-                        console.log("user added ");
                         res.status(201).json({
                             message:"User added successfully",
                             createdProduct:addUser
@@ -211,6 +236,12 @@ app.post('/team',verifyToken,function(req,res){
             res.status(403).json({
                 error:'Invalid Token'
             });
+        }else if (authData.type != 'admin')
+        {
+            console.log('not admin')
+            res.status(403).json({
+                error:'Invalid Token'
+            });
         }
         else{
 
@@ -222,7 +253,8 @@ app.post('/team',verifyToken,function(req,res){
 
         var payload = {
             //password: req.body.password,
-            id: req.body.id
+            id: req.body.id,
+            type:'team'
         }
         var tokenValue = jwt.sign(JSON.parse(JSON.stringify(payload)), 'secretkey',{
             
@@ -240,7 +272,8 @@ app.post('/team',verifyToken,function(req,res){
      
         res.status(201).json({
             message:"Team Created successfully",
-            createdTeam:team
+            createdTeam:team,
+            token:tokenValue
         });
     }).catch(err =>{
         res.status(500).json({error:err});
@@ -266,6 +299,12 @@ app.get('/score',verifyToken,function(req,res){
     jwt.verify(req.token,'secretkey',(err,authData) =>{
 
         if (err){
+            res.status(403).json({
+                error:'Invalid Token'
+            });
+        }else if (authData.type != 'user')
+        {
+            console.log('not user')
             res.status(403).json({
                 error:'Invalid Token'
             });
@@ -354,12 +393,18 @@ app.get('/allscores',verifyToken,function(req,res){
             res.status(403).json({
                 error:'Invalid Token'
             });
+        }else if (authData.type != 'admin' && authData.type != 'user')
+        {
+            console.log('not admin or user')
+            res.status(403).json({
+                error:'Invalid Token'
+            });
         }
         else{
     teams.find().sort({"score":-1}).then(result =>{
-
+        
         res.status(200).json({
-            scores:result
+            data:result
         })
     })
 }
@@ -377,9 +422,15 @@ app.get('/users',verifyToken,function(req,res){
             res.status(403).json({
                 error:'Invalid Token'
             });
+        }else if (authData.type != 'admin')
+        {
+            console.log('not admin')
+            res.status(403).json({
+                error:'Invalid Token'
+            });
         }
         else{
-   User.find().then(result =>{
+   User.find().sort({"userId":1}).then(result =>{
 
     // console.log("result is"+ result)
     res.status(200).json({
@@ -396,6 +447,12 @@ app.get('/teams',verifyToken,function(req,res){
     jwt.verify(req.token,'secretkey',(err,authData) =>{
 
         if (err){
+            res.status(403).json({
+                error:'Invalid Token'
+            });
+        }else if (authData.type != 'admin')
+        {
+            console.log('not admin')
             res.status(403).json({
                 error:'Invalid Token'
             });
@@ -419,12 +476,20 @@ app.post('/questions',verifyToken,function(req,res){
             res.status(403).json({
                 error:'Invalid Token'
             });
+        }else if (authData.type != 'admin')
+        {
+            console.log('not admin')
+            res.status(403).json({
+                error:'Invalid Token'
+            });
         }
         else{
+    
     surveyquestions.find().then(result =>{
 
     var question = new surveyquestions({
-        questionId:result.length+1,
+
+        questionId:result.length + 1,
         question:req.body.question
     })
     question.save().then(result =>{
@@ -436,9 +501,25 @@ app.post('/questions',verifyToken,function(req,res){
             error:err
         })
     })
-    
 })
         }
+    
+})
+})
+
+app.post('/count',function(req,res,next)
+{
+    var qcount = new questionscount({
+        count:9
+    })
+    qcount.save().then(result =>{
+        res.status(200).json({
+            message:"count added succesfully"
+        })
+    }).catch(err =>{
+        res.status(500).json({
+            error:err
+        })
     })
 })
 
@@ -451,11 +532,22 @@ app.delete('/questions',verifyToken,function(req,res){
             res.status(403).json({
                 error:'Invalid Token'
             });
+        }else if (authData.type != 'admin')
+        {
+            console.log('not admin')
+            res.status(403).json({
+                error:'Invalid Token'
+            });
         }
         else{
-    surveyquestions.deleteMany({}).then(result=>{
-        res.status(200).json({
-            message:"questions deleted succesfully"
+    surveyquestions.deleteMany({"question":req.body.questionId}).then(result=>{
+        teamScores.deleteMany().then(result => {
+            teams.updateMany({},{$set:{evaluationscount:0,score:0}}).then(result =>{
+                res.status(200).json({
+                    message:"question deleted succesfully"
+                })
+            })
+           
         })
     })
 }
@@ -471,13 +563,18 @@ app.get('/questions',verifyToken,function(req,res){
             res.status(403).json({
                 error:'Invalid Token'
             });
+        }else if (authData.type != 'admin')
+        {
+            console.log('not admin')
+            res.status(403).json({
+                error:'Invalid Token'
+            });
         }
         else{
     surveyquestions.find().sort({questionId:1}).then(result =>{
 
         res.status(200).json({
-            questions:result,
-            count:result.length
+            data:result
         })
     })
 }
@@ -489,6 +586,12 @@ app.get('/userteams' , verifyToken,function(req,res,next)
     jwt.verify(req.token,'secretkey',(err,authData) =>{
 
         if (err){
+            res.status(403).json({
+                error:'Invalid Token'
+            });
+        }else if (authData.type != 'admin' && authData.type !='user')
+        {
+            console.log('not admin or user')
             res.status(403).json({
                 error:'Invalid Token'
             });
@@ -543,8 +646,11 @@ app.get('/verify',verifyToken,function(req,res)
         {
         var decoded = jwt.decode(req.token, {complete: true});
         // console.log(decoded.header)
-        // console.log(decoded.payload)
-        res.status(200).json({'id':decoded.payload.id})
+        console.log(decoded.payload)
+        res.status(200).json({
+            'id':decoded.payload.id,
+            'type':decoded.payload.type
+        })
         }
     })
 })
