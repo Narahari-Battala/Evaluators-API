@@ -493,8 +493,13 @@ app.post('/questions',verifyToken,function(req,res){
         question:req.body.question
     })
     question.save().then(result =>{
-        res.status(200).json({
-            message:"question added succesfully"
+        teamscores.deleteMany().then(result => {
+            teams.updateMany({},{$set:{evaluationscount:0,score:0}}).then(result =>{
+                res.status(200).json({
+                    message:"question deleted succesfully"
+                })
+            })
+           
         })
     }).catch(err =>{
         res.status(500).json({
@@ -541,7 +546,7 @@ app.delete('/questions',verifyToken,function(req,res){
         }
         else{
     surveyquestions.deleteMany({"question":req.body.questionId}).then(result=>{
-        teamScores.deleteMany().then(result => {
+        teamscores.deleteMany().then(result => {
             teams.updateMany({},{$set:{evaluationscount:0,score:0}}).then(result =>{
                 res.status(200).json({
                     message:"question deleted succesfully"
@@ -610,6 +615,47 @@ app.get('/userteams' , verifyToken,function(req,res,next)
                         console.log("result is " + result);
                         res.status(200).json({
                             teams:result
+                        })
+                    })
+
+                }
+            })
+        }
+})
+})
+
+// get user scores teams
+
+app.get('/userevaluations' , verifyToken,function(req,res,next)
+{
+    console.log(' request is ' + req.query.userId)
+    jwt.verify(req.token,'secretkey',(err,authData) =>{
+
+        if (err){
+            res.status(403).json({
+                error:'Invalid Token'
+            });
+        }else if (authData.type != 'admin' && authData.type !='user')
+        {
+            console.log('not admin or user')
+            res.status(403).json({
+                error:'Invalid Token'
+            });
+        }
+        else{
+
+            User.find({userId:req.query.userId}).then(result =>{
+    
+
+                if (result.length == 0){
+                    res.status(500).json({
+                        message:"Invalid user"
+                    });
+                }else {
+                    teamscores.find({userId:req.query.userId}).then(result =>{
+                        console.log("result is " + result);
+                        res.status(200).json({
+                            data:result
                         })
                     })
 
