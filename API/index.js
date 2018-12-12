@@ -450,7 +450,7 @@ app.get('/teams',verifyToken,function(req,res){
             res.status(403).json({
                 error:'Invalid Token'
             });
-        }else if (authData.type != 'admin')
+        }else if (authData.type != 'admin' && authData.type !='user')
         {
             console.log('not admin')
             res.status(403).json({
@@ -568,7 +568,7 @@ app.get('/questions',verifyToken,function(req,res){
             res.status(403).json({
                 error:'Invalid Token'
             });
-        }else if (authData.type != 'admin')
+        }else if (authData.type != 'admin' && authData.type !='user')
         {
             console.log('not admin')
             res.status(403).json({
